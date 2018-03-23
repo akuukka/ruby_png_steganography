@@ -207,13 +207,15 @@ def test()
 
 	test_png_size.times do |y|
 		test_png_size.times do |x|
-			png[x,y] = ChunkyPNG::Color.rgba(rng.rand(256), rng.rand(256),rng.rand(256), 255)	
+			png[x,y] = ChunkyPNG::Color.rgba(x/2, y/2, (x+y) % 256, 255)	
 		end
 	end
 
+	start_time = Time.now
+
 	png.save("test_in.png", :interlace => true)
 
-	test_string = "AbracadabraAbracadabraAbracadabraAbracadabraAbracadabraAbracadabraAbracadabraAbracad"
+	test_string = "Makrillien ystavat tulevat kokemaan ihmeellisen kokemuksen josta riittaa kerrotavaksi jalkipolville."
 	data = test_string.bytes
 
 	export_data(data, "test_in.png" ,"test_out.png")
@@ -222,6 +224,10 @@ def test()
 	if read_data.sort != data.sort then
 		abort("Error!")
 	end
+
+	end_time = Time.now
+	run_time = end_time - start_time
+	puts "Test took " + run_time.to_s + " s"
 end
 
 def parse_args()
