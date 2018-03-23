@@ -302,6 +302,8 @@ if __FILE__ == $0
 		data = read_data(image_file_name)
 		File.open(data_file_name, 'wb') { |file| file.write(data.pack('c*')) }
 	else
-		puts "Usage: stega"
+		puts "Usage:\n"
+		puts " Store data to png: ruby stega.rb --png_in original_png_file_name --png_out modified_png_file_name --data_in my_data.dat\n"
+		puts " Extract data from png: ruby stega.rb --png_in modified_png_file_name --data_out my_extracted_data.dat\n"
 	end
 end
