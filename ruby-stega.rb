@@ -298,8 +298,15 @@ if __FILE__ == $0
 			$BITS_PER_CHANNEL = bpc
 		end
 		data_file_name = args["data_in"][0]
-		s = File.open(data_file_name, 'rb') { |f| f.read }
+
+		s = nil
+		begin
+			s = File.open(data_file_name, 'rb') { |f| f.read }
+		rescue
+			abort("Unable to read " + data_file_name)
+		end
 		data = s.bytes
+
 		export_data(data, args["png_in"][0],args["png_out"][0])
 	elsif args != nil and args.has_key? "png_in" and args.has_key? "data_out" then
 		# Extract data out of PNG
