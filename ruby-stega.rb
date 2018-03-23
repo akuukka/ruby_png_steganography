@@ -69,7 +69,6 @@ def write_data(data, png_out, pixel_offset, bits_per_channel)
 		y = pixel_index / png_out.width
 
 		col = png_out[x,y]
-		ocol = col
 
 		channel_mask = (0xff00)<<(8*(2-channel_index))
 		channel_mask_inv = 0xffffffff ^ channel_mask
