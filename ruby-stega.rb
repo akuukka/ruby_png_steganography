@@ -43,8 +43,9 @@ def write_data(data, png_out, pixel_offset, bits_per_channel)
 		col = png_out[x,y]
 		ocol = col
 
-		channel_mask = [0xff000000,0xff0000,0xff00][channel_index]
-		channel_mask_inv = [0x00ffffff,0xff00ffff,0xffff00ff][channel_index]
+		channel_mask = (0xff00)<<(8*(2-channel_index))
+		channel_mask_inv = 0xffffffff ^ channel_mask
+		
 		color_value = (col & channel_mask) >> (24-8*channel_index)
 		orig_color_value = color_value
 		mask = 0xff - (1 << bit_index)
@@ -136,7 +137,7 @@ def read_bytes(png, bits_per_channel, pixel_offset, byte_count)
 		y = pixel_index / png.width
 		col = png[x,y]
 
-		channel_mask = [0xff000000,0xff0000,0xff00][channel_index]
+		channel_mask = (0xff00)<<(8*(2-channel_index))
 		color_value = (col & channel_mask) >> (24-8*channel_index)
 
 		mask = 1 << bit_index
