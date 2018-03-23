@@ -112,11 +112,7 @@ def export_data(data, png_in_name, png_out_name)
 
 	png_in = ChunkyPNG::Image.from_file(png_in_name)
 	png_out = ChunkyPNG::Image.new(png_in.width, png_in.height, ChunkyPNG::Color::TRANSPARENT)
-	png_out.height.times do |y|
-		png_out.width.times do |x|
-			png_out[x,y] = png_in[x,y]
-		end
-	end
+	png_out.replace!(png_in,0,0)
 
 	max_storable_bits = get_max_storable_bits(png_out, $BITS_PER_CHANNEL)
 	data_count_bits = (data.count*8)
@@ -131,7 +127,7 @@ def export_data(data, png_in_name, png_out_name)
 	write_data(hdr_data, png_out, 0, 1)
 	write_data(data, png_out, $HEADER_SIZE_IN_PIXELS, $BITS_PER_CHANNEL)
 
-	png_out.save("test_out.png")
+	png_out.save(png_out_name)
 end
 
 def read_bytes(png, bits_per_channel, pixel_offset, byte_count)
@@ -217,7 +213,7 @@ def test()
 	data = test_string.bytes
 
 	start_time = Time.now
-	
+
 	export_data(data, "test_in.png" ,"test_out.png")
 	read_data = read_data("test_out.png")
 
