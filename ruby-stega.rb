@@ -45,7 +45,7 @@ def write_data(data, png_out, pixel_offset, bits_per_channel)
 
 		channel_mask = (0xff00)<<(8*(2-channel_index))
 		channel_mask_inv = 0xffffffff ^ channel_mask
-		
+
 		color_value = (col & channel_mask) >> (24-8*channel_index)
 		orig_color_value = color_value
 		mask = 0xff - (1 << bit_index)
@@ -164,7 +164,12 @@ def read_bytes(png, bits_per_channel, pixel_offset, byte_count)
 end
 
 def read_data(png_name)
-	png_in = ChunkyPNG::Image.from_file(png_name)
+	png_in = nil
+	begin
+		png_in = ChunkyPNG::Image.from_file(png_name)
+	rescue
+		abort("Problem reading " + png_name + ". File not found or it is not a proper PNG file.")
+	end
 
 	header_bytes = read_bytes(png_in, 1, 0, 12)
 	file_version, data_count_bytes, bits_per_channel, expected_crc = check_header(header_bytes)
