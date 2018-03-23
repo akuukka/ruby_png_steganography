@@ -209,13 +209,9 @@ def read_bytes(png, bits_per_channel, pixel_offset, byte_count)
 
 		databit = (color_value & mask) >> bit_index
 
-		if databit > 1 then
-			abort("Mysterious stuff happening")
-		end
-
 		if i % 8 == 0 then
 			if i > 0 then
-				ret = ret + [current_byte]
+				ret.push(current_byte)
 			end
 			current_byte = 0
 		else
@@ -223,7 +219,7 @@ def read_bytes(png, bits_per_channel, pixel_offset, byte_count)
 		end
 		current_byte = current_byte | databit
 	}
-	ret = ret + [current_byte]
+	ret.push(current_byte)
 
 	return ret
 end
