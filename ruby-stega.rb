@@ -1,5 +1,7 @@
 require 'chunky_png'
 require 'zlib'
+require 'openssl'
+require 'digest/sha2'
 
 $MAGIC_NUMBER = 0xb431a3ef
 $FILE_VERSION = 1
@@ -27,6 +29,32 @@ end
 def byte_array_crc(arr)
 	crc = Zlib.crc32(arr.pack("C*"))
 	return crc & 0xffff
+end
+
+def encrypt(data, key)
+	sha256 = Digest::SHA2.new(256)
+	aes = OpenSSL::Cipher.new("AES-256-CFB")
+	iv = sha256.digest("ruby-stegafas")
+	key = sha256.digest(key)
+
+	aes.encrypt
+	aes.key = key
+	aes.iv = iv
+	encrypted_data = aes.update(data.pack('c*')) + aes.final
+	return encrypted_data.bytes
+end
+
+def decrypt(data, key)
+	sha256 = Digest::SHA2.new(256)
+	aes = OpenSSL::Cipher.new("AES-256-CFB")
+	iv = sha256.digest("ruby-stegafas")
+	key = sha256.digest(key)
+
+	aes.decrypt
+	aes.key = key
+	aes.iv = iv
+	unencrypted_data = aes.update(data.pack('c*')) + aes.final
+	return unencrypted_data.bytes
 end
 
 def write_data(data, png_out, pixel_offset, bits_per_channel)
@@ -95,7 +123,11 @@ def check_header(data)
 	return file_version, data_count_bytes, bits_per_channel, crc
 end
 
-def export_data(data, png_in_name, png_out_name)
+def export_data(data, png_in_name, png_out_name, encryption_key)
+	if encryption_key != nil then
+		data = encrypt(data,encryption_key)
+	end
+
 	if data.count > 0xffffffff then
 		abort("Data too large.")
 	end
@@ -163,7 +195,7 @@ def read_bytes(png, bits_per_channel, pixel_offset, byte_count)
 	return ret
 end
 
-def read_data(png_name)
+def read_data(png_name, decryption_key)
 	png_in = nil
 	begin
 		png_in = ChunkyPNG::Image.from_file(png_name)
@@ -184,36 +216,66 @@ def read_data(png_name)
 		abort("Invalid CRC.")
 	end
 
+	if decryption_key then
+		actual_data = decrypt(actual_data, decryption_key)
+	end
+
 	return actual_data
 end
 
 def test()
-	assert_equal($MAGIC_NUMBER, byte_array_to_int(int_to_byte_array($MAGIC_NUMBER)),"Could not revert properly back to int")
+	# Unit test encryption/decryption. Given data and key, it should be true that data equals decrypt(encrypt(data,key),key).
+	data = "Hakkapeliitta".bytes
+	key = "debiru"
 
-	rng = Random.new(5)
+	encrypted = encrypt(data,key)
+	orig = decrypt(encrypted,key)
 
-	test_png_size = 512
-	png = ChunkyPNG::Image.new(test_png_size, test_png_size, ChunkyPNG::Color::TRANSPARENT)
+	assert_equal(data.pack("c*"), orig.pack("c*"),"Encryption/decryption doesn't work")
 
-	test_png_size.times do |y|
-		test_png_size.times do |x|
-			png[x,y] = ChunkyPNG::Color.rgba(x/2, y/2, (x+y) % 256, 255)	
-		end
-	end
+	# Test PNG steganography
 
-	png.save("test_in.png", :interlace => true)
-
-	test_string = "Makrillien ystavat tulevat kokemaan ihmeellisen kokemuksen josta riittaa kerrotavaksi jalkipolville."
-	data = test_string.bytes
+	test_cases = [
+		{
+			:data => "Makrillien ystavat tulevat kokemaan ihmeellisen kokemuksen josta riittaa kerrotavaksi jalkipolville.",
+			:encrypt => true,
+			:encryption_key => "zappadam"
+		},
+		{
+			:data => "Aivan jarjeton on leipajonon luotaanpoistyontava hantapaa.",
+			:encrypt => false
+		}
+	]
 
 	start_time = Time.now
 
-	export_data(data, "test_in.png" ,"test_out.png")
-	read_data = read_data("test_out.png")
+	test_cases.each { |test_case|
+		assert_equal($MAGIC_NUMBER, byte_array_to_int(int_to_byte_array($MAGIC_NUMBER)),"Could not revert properly back to int")
 
-	if read_data.sort != data.sort then
-		abort("Error!")
-	end
+		rng = Random.new(5)
+
+		test_png_size = 512
+		png = ChunkyPNG::Image.new(test_png_size, test_png_size, ChunkyPNG::Color::TRANSPARENT)
+
+		test_png_size.times do |y|
+			test_png_size.times do |x|
+				png[x,y] = ChunkyPNG::Color.rgba(x/2, y/2, (x+y) % 256, 255)	
+			end
+		end
+
+		png.save("test_in.png", :interlace => true)
+
+		test_string = test_case[:data]
+		data = test_string.bytes
+
+
+		export_data(data, "test_in.png" ,"test_out.png", test_case[:encrypt] ? test_case[:encryption_key] : nil)
+		read_data = read_data("test_out.png", test_case[:encrypt] ? test_case[:encryption_key] : nil)
+
+		if read_data.sort != data.sort then
+			abort("Error!")
+		end
+	}
 
 	end_time = Time.now
 	run_time = end_time - start_time
@@ -244,6 +306,12 @@ def parse_args()
 			"params" => 1
 		},
 		"bits_per_channel" => {
+			"params" => 1
+		},
+		"encrypt" => {
+			"params" => 1
+		},
+		"decrypt" => {
 			"params" => 1
 		}
 	}
@@ -307,12 +375,23 @@ if __FILE__ == $0
 		end
 		data = s.bytes
 
-		export_data(data, args["png_in"][0],args["png_out"][0])
+		encryption_key = nil
+		if args.has_key? "encrypt" then
+			encryption_key = args["encrypt"][0]
+		end
+
+		export_data(data, args["png_in"][0],args["png_out"][0], encryption_key)
 	elsif args != nil and args.has_key? "png_in" and args.has_key? "data_out" then
 		# Extract data out of PNG
 		image_file_name = args["png_in"][0]
 		data_file_name = args["data_out"][0]
-		data = read_data(image_file_name)
+
+		decryption_key = nil
+		if args.has_key? "decrypt" then
+			decryption_key = args["decrypt"][0]
+		end		
+
+		data = read_data(image_file_name,decryption_key)
 		File.open(data_file_name, 'wb') { |file| file.write(data.pack('c*')) }
 	else
 		puts "Usage:"
@@ -329,7 +408,18 @@ if __FILE__ == $0
 		puts "        the least significant bit for each R,G and B value is modified. With 8,"
 		puts "        nothing is left of the original image."
 		puts ""
-		puts "  Extract data from png: ruby stega.rb --png_in modified_png_file_name --data_out my_extracted_data.dat"
+		puts "      --encrypt key"
 		puts ""
+		puts "        Encrypts the data using 256 AES with the given secret key."
+		puts ""
+		puts "  To extract data from png:"
+		puts ""
+		puts "    ruby stega.rb --png_in modified_png_file_name --data_out my_extracted_data.dat"
+		puts ""
+		puts "    Optional parameters:"
+		puts ""
+		puts "      --decrypt key"
+		puts ""
+		puts "        Decrypts the data using 256 AES with the given secret key."
 	end
 end
