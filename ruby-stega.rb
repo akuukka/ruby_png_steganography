@@ -7,6 +7,40 @@ $MAGIC_NUMBER = 0xb431a3ef
 $FILE_VERSION = 1
 $HEADER_SIZE_IN_PIXELS = 32 # 32 pixels allows us to store 32x3=(30+2)x3=90+6=96 bits of data, when using only the least significant bits, perfect for a 96-bit header.
 $BITS_PER_CHANNEL = 1
+$HELP_STR = <<-FOO
+ruby-stega by Antti Kuukka
+
+This tool stores hidden data into PNG images which can be encrypted using AES.
+
+Usage:
+
+  To store data to png:
+
+    ruby stega.rb --png_in in.png --png_out out.png --data_in my_data.dat
+
+    Optional parameters:
+
+      --bits_per_channel n
+
+        n should be a number between 1 and 8. The default value is 1 where only
+        the least significant bit for each R,G and B value is modified. With 8,
+        nothing is left of the original image.
+
+      --encrypt key
+
+        Encrypts the data using 256 AES with the given secret key.
+
+  To extract data from png:
+
+    ruby stega.rb --png_in out.png --data_out orig_data.dat
+
+    Optional parameters:
+
+      --decrypt key
+
+        Decrypts the data using 256 AES with the given secret key.
+
+FOO
 
 def int_to_byte_array(value)
 	return [(value & 0xff000000) >> 24, (value & 0x00ff0000) >> 16, (value & 0xff00) >> 8, value & 0xff]
@@ -393,32 +427,6 @@ if __FILE__ == $0
 		data = read_data(image_file_name,decryption_key)
 		File.open(data_file_name, 'wb') { |file| file.write(data.pack('c*')) }
 	else
-		puts "Usage:"
-		puts ""
-		puts "  To store data to png:"
-		puts ""
-		puts "    ruby stega.rb --png_in in.png --png_out out.png --data_in my_data.dat"
-		puts ""
-		puts "    Optional parameters:"
-		puts ""
-		puts "      --bits_per_channel n"
-		puts ""
-		puts "        n should be a number between 1 and 8. The default value is 1 where only"
-		puts "        the least significant bit for each R,G and B value is modified. With 8,"
-		puts "        nothing is left of the original image."
-		puts ""
-		puts "      --encrypt key"
-		puts ""
-		puts "        Encrypts the data using 256 AES with the given secret key."
-		puts ""
-		puts "  To extract data from png:"
-		puts ""
-		puts "    ruby stega.rb --png_in modified_png_file_name --data_out my_extracted_data.dat"
-		puts ""
-		puts "    Optional parameters:"
-		puts ""
-		puts "      --decrypt key"
-		puts ""
-		puts "        Decrypts the data using 256 AES with the given secret key."
+		puts $HELP_STR
 	end
 end
