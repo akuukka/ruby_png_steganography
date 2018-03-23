@@ -24,10 +24,6 @@ def assert_equal(a,b,error)
 	end
 end
 
-def bit_print(col)
-	puts ((col&0xff000000)>>24).to_s(2) + " " + ((col&0xff0000)>>16).to_s(2) + " " + ((col&0xff00)>>8).to_s(2)
-end
-
 def byte_array_crc(arr)
 	crc = Zlib.crc32(arr.pack("C*"))
 	return crc & 0xffff
@@ -38,16 +34,13 @@ def write_data(data, png_out, pixel_offset, bits_per_channel)
 	total_bits.times { |i|
 		pixel_index = i / (3 * bits_per_channel) + pixel_offset
 		channel_index = (i/bits_per_channel)%3
-		channel = ["R","G","B"][channel_index]
 		bit_index = i % bits_per_channel
-		#puts "Bit " + i.to_s + " goes to pixel " + pixel_index.to_s + " channel " + channel + " bit " + (7 - bit_index).to_s
 
 		data_bit = data[i/8]&(1<<(7-(i%8))) > 0 ? 1 : 0
 		x = pixel_index % png_out.width
 		y = pixel_index / png_out.width
 
 		col = png_out[x,y]
-		#bit_print(col)
 		ocol = col
 
 		channel_mask = [0xff000000,0xff0000,0xff00][channel_index]
@@ -58,11 +51,7 @@ def write_data(data, png_out, pixel_offset, bits_per_channel)
 		color_value = color_value & mask
 		color_value = color_value | ((data_bit) << bit_index)
 
-		#puts "Store "  + data_bit.to_s + " as color value " + color_value.to_s + " with orig color value " + orig_color_value.to_s
 		col = (col & channel_mask_inv) | (color_value<<(24-channel_index*8))
-
-		#bit_print(col)
-		#puts " "
 
 		png_out[x,y] = col
 	}
@@ -141,7 +130,6 @@ def read_bytes(png, bits_per_channel, pixel_offset, byte_count)
 	bits_to_read.times { |i|
 		pixel_index = i / (3 * bits_per_channel) + pixel_offset
 		channel_index = (i/bits_per_channel)%3
-		channel = ["R","G","B"][channel_index]
 		bit_index = i % bits_per_channel
 
 		x = pixel_index % png.width
