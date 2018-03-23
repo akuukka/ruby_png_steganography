@@ -246,6 +246,9 @@ def parse_args()
 		},
 		"data_out" => {
 			"params" => 1
+		},
+		"bits_per_channel" => {
+			"params" => 1
 		}
 	}
 
@@ -291,6 +294,13 @@ if __FILE__ == $0
 		test()
 	elsif args != nil and args.has_key? "png_in" and args.has_key? "data_in" and args.has_key? "png_out" then
 		# Put data inside PNG
+		if args.has_key? "bits_per_channel" then
+			bpc = args["bits_per_channel"][0].to_i
+			if not (bpc >= 1 and bpc <= 8) then
+				abort("Bits per channel must be between 1 and 8.")
+			end
+			$BITS_PER_CHANNEL = bpc
+		end
 		data_file_name = args["data_in"][0]
 		s = File.open(data_file_name, 'rb') { |f| f.read }
 		data = s.bytes
@@ -302,8 +312,21 @@ if __FILE__ == $0
 		data = read_data(image_file_name)
 		File.open(data_file_name, 'wb') { |file| file.write(data.pack('c*')) }
 	else
-		puts "Usage:\n"
-		puts " Store data to png: ruby stega.rb --png_in original_png_file_name --png_out modified_png_file_name --data_in my_data.dat\n"
-		puts " Extract data from png: ruby stega.rb --png_in modified_png_file_name --data_out my_extracted_data.dat\n"
+		puts "Usage:"
+		puts ""
+		puts "  To store data to png:"
+		puts ""
+		puts "    ruby stega.rb --png_in in.png --png_out out.png --data_in my_data.dat"
+		puts ""
+		puts "    Optional parameters:"
+		puts ""
+		puts "      --bits_per_channel n"
+		puts ""
+		puts "        n should be a number between 1 and 8. The default value is 1 where only"
+		puts "        the least significant bit for each R,G and B value is modified. With 8,"
+		puts "        nothing is left of the original image."
+		puts ""
+		puts "  Extract data from png: ruby stega.rb --png_in modified_png_file_name --data_out my_extracted_data.dat"
+		puts ""
 	end
 end
