@@ -211,13 +211,13 @@ def test()
 		end
 	end
 
-	start_time = Time.now
-
 	png.save("test_in.png", :interlace => true)
 
 	test_string = "Makrillien ystavat tulevat kokemaan ihmeellisen kokemuksen josta riittaa kerrotavaksi jalkipolville."
 	data = test_string.bytes
 
+	start_time = Time.now
+	
 	export_data(data, "test_in.png" ,"test_out.png")
 	read_data = read_data("test_out.png")
 
