@@ -6,7 +6,6 @@ require 'digest/sha2'
 $MAGIC_NUMBER = 0xb431a3ef
 $FILE_VERSION = 1
 $HEADER_SIZE_IN_PIXELS = 32 # 32 pixels allows us to store 32x3=(30+2)x3=90+6=96 bits of data, when using only the least significant bits, perfect for a 96-bit header.
-$BITS_PER_CHANNEL = 1
 $HELP_STR = <<-FOO
 ruby-stega by Antti Kuukka
 
@@ -156,7 +155,7 @@ def check_header(data)
 	return file_version, data_count_bytes, bits_per_channel, crc
 end
 
-def export_data(data, png_in_name, png_out_name, encryption_key)
+def export_data(data, png_in_name, png_out_name, bits_per_channel, encryption_key)
 	if encryption_key != nil then
 		data = encrypt(data,encryption_key)
 	end
@@ -165,22 +164,28 @@ def export_data(data, png_in_name, png_out_name, encryption_key)
 		abort("Data too large.")
 	end
 
-	png_in = ChunkyPNG::Image.from_file(png_in_name)
+	png_in = nil
+	begin
+		png_in = ChunkyPNG::Image.from_file(png_in_name)
+	rescue
+		abort("Unable to open #{png_in_name}.")
+	end
+
 	png_out = ChunkyPNG::Image.new(png_in.width, png_in.height, ChunkyPNG::Color::TRANSPARENT)
 	png_out.replace!(png_in,0,0)
 
-	max_storable_bits = get_max_storable_bits(png_out, $BITS_PER_CHANNEL)
+	max_storable_bits = get_max_storable_bits(png_out, bits_per_channel)
 	data_count_bits = (data.count*8)
 	if data_count_bits > max_storable_bits then
 		abort("Attempting to store #{data.count} bytes when at most #{max_storable_bits/8} bytes can be stored. Please use larger image.")
 	end
 
-	hdr_data = generate_header(data,$BITS_PER_CHANNEL)
+	hdr_data = generate_header(data,bits_per_channel)
 
 	puts "Writing " + data.count.to_s + " bytes of data and " + hdr_data.count.to_s + " bytes of header data."
 
 	write_data(hdr_data, png_out, 0, 1)
-	write_data(data, png_out, $HEADER_SIZE_IN_PIXELS, $BITS_PER_CHANNEL)
+	write_data(data, png_out, $HEADER_SIZE_IN_PIXELS, bits_per_channel)
 
 	png_out.save(png_out_name)
 end
@@ -253,25 +258,31 @@ def read_data(png_name, decryption_key)
 end
 
 def test()
-	# Unit test encryption/decryption. Given data and key, it should be true that data equals decrypt(encrypt(data,key),key).
-	data = "Hakkapeliitta".bytes
-	key = "debiru"
+	# Test byte array/int conversion
+	assert_equal($MAGIC_NUMBER, byte_array_to_int(int_to_byte_array($MAGIC_NUMBER)),"Could not revert properly back to int")
 
+	# Unit test encryption/decryption. Given data and key, it should be true that data equals decrypt(encrypt(data,key),key).
+	data = "test encryption data".bytes
+	key = "test_encryption_key"
 	encrypted = encrypt(data,key)
 	orig = decrypt(encrypted,key)
-
-	assert_equal(data.pack("c*"), orig.pack("c*"),"Encryption/decryption doesn't work")
+	assert_equal(data.pack("c*"), orig.pack("c*"),"Encryption/decryption doesn't work as it should!")
 
 	# Test PNG steganography
-
 	test_cases = [
 		{
-			:data => "Makrillien ystavat tulevat kokemaan ihmeellisen kokemuksen josta riittaa kerrotavaksi jalkipolville.",
+			:data => "Makrillien ystavat tulevat kokemaan ihmeellisen kokemuksen josta riittaa kerrottavaksi jalkipolville.",
 			:encrypt => true,
+			:bits_per_channel => 1,
+			:image_width => 256,
+			:image_height => 128,
 			:encryption_key => "zappadam"
 		},
 		{
 			:data => "Aivan jarjeton on leipajonon luotaanpoistyontava hantapaa.",
+			:bits_per_channel => 3,
+			:image_width => 256,
+			:image_height => 256,
 			:encrypt => false
 		}
 	]
@@ -279,16 +290,12 @@ def test()
 	start_time = Time.now
 
 	test_cases.each { |test_case|
-		assert_equal($MAGIC_NUMBER, byte_array_to_int(int_to_byte_array($MAGIC_NUMBER)),"Could not revert properly back to int")
-
-		rng = Random.new(5)
-
-		test_png_size = 512
-		png = ChunkyPNG::Image.new(test_png_size, test_png_size, ChunkyPNG::Color::TRANSPARENT)
-
-		test_png_size.times do |y|
-			test_png_size.times do |x|
-				png[x,y] = ChunkyPNG::Color.rgba(x/2, y/2, (x+y) % 256, 255)	
+		w = test_case[:image_width]
+		h = test_case[:image_height]
+		png = ChunkyPNG::Image.new(w, h, ChunkyPNG::Color::TRANSPARENT)
+		h.times do |y|
+			w.times do |x|
+				png[x,y] = ChunkyPNG::Color.rgba(x*256/w, y*256/h, (x+y) % 256, 255)	
 			end
 		end
 
@@ -297,8 +304,7 @@ def test()
 		test_string = test_case[:data]
 		data = test_string.bytes
 
-
-		export_data(data, "test_in.png" ,"test_out.png", test_case[:encrypt] ? test_case[:encryption_key] : nil)
+		export_data(data, "test_in.png" ,"test_out.png", test_case[:bits_per_channel], test_case[:encrypt] ? test_case[:encryption_key] : nil)
 		read_data = read_data("test_out.png", test_case[:encrypt] ? test_case[:encryption_key] : nil)
 
 		if read_data.sort != data.sort then
@@ -320,28 +326,28 @@ def parse_args()
 
 	supported_args = {
 		"test" => {
-			"params" => 0
+			:params => 0
 		},
 		"png_in" => {
-			"params" => 1
+			:params => 1
 		},
 		"png_out" => {
-			"params" => 1
+			:params => 1
 		},
 		"data_in" => {
-			"params" => 1
+			:params => 1
 		},
 		"data_out" => {
-			"params" => 1
+			:params => 1
 		},
 		"bits_per_channel" => {
-			"params" => 1
+			:params => 1
 		},
 		"encrypt" => {
-			"params" => 1
+			:params => 1
 		},
 		"decrypt" => {
-			"params" => 1
+			:params => 1
 		}
 	}
 
@@ -363,7 +369,7 @@ def parse_args()
 			return nil
 		end
 
-		expected_param_count = supported_args[arg]["params"]
+		expected_param_count = supported_args[arg][:params]
 
 		if ARGV.count <= index + expected_param_count then
 			return nil
@@ -387,12 +393,13 @@ if __FILE__ == $0
 		test()
 	elsif args != nil and args.has_key? "png_in" and args.has_key? "data_in" and args.has_key? "png_out" then
 		# Put data inside PNG
+		bits_per_channel = 1
 		if args.has_key? "bits_per_channel" then
 			bpc = args["bits_per_channel"][0].to_i
 			if not (bpc >= 1 and bpc <= 8) then
 				abort("Bits per channel must be between 1 and 8.")
 			end
-			$BITS_PER_CHANNEL = bpc
+			bits_per_channel = bpc
 		end
 		data_file_name = args["data_in"][0]
 
@@ -409,7 +416,7 @@ if __FILE__ == $0
 			encryption_key = args["encrypt"][0]
 		end
 
-		export_data(data, args["png_in"][0],args["png_out"][0], encryption_key)
+		export_data(data, args["png_in"][0],args["png_out"][0], bits_per_channel, encryption_key)
 	elsif args != nil and args.has_key? "png_in" and args.has_key? "data_out" then
 		# Extract data out of PNG
 		image_file_name = args["png_in"][0]
