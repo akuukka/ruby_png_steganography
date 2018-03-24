@@ -198,6 +198,10 @@ def read_bytes(png, bits_per_channel, pixel_offset, byte_count)
 
 	puts "Read " + byte_count.to_s + " bytes"
 
+	if byte_count == 0 then
+		return ret
+	end
+
 	bits_to_read.times { |i|
 		pixel_index = i / (3 * bits_per_channel) + pixel_offset
 		channel_index = (i/bits_per_channel)%3
@@ -270,6 +274,22 @@ def test()
 
 	# Test PNG steganography
 	test_cases = [
+		{
+			# We should be able to handle empty data without trouble.
+			:data => "",
+			:bits_per_channel => 3,
+			:image_width => 256,
+			:image_height => 256,
+			:encrypt => false
+		},
+		{
+			# Even if it's encrypted.
+			:data => "",
+			:bits_per_channel => 3,
+			:image_width => 256,
+			:image_height => 256,
+			:encrypt => true
+		},
 		{
 			:data => "Makrillien ystavat tulevat kokemaan ihmeellisen kokemuksen josta riittaa kerrottavaksi jalkipolville.",
 			:encrypt => true,
