@@ -172,7 +172,7 @@ def export_data(data, png_in_name, png_out_name, encryption_key)
 	max_storable_bits = get_max_storable_bits(png_out, $BITS_PER_CHANNEL)
 	data_count_bits = (data.count*8)
 	if data_count_bits > max_storable_bits then
-		abort("Image is too small.")
+		abort("Attempting to store #{data.count} bytes when at most #{max_storable_bits/8} bytes can be stored. Please use larger image.")
 	end
 
 	hdr_data = generate_header(data,$BITS_PER_CHANNEL)
