@@ -53,12 +53,6 @@ def get_max_storable_bits(png, bits_per_channel)
 	return (png.width * png.height - $HEADER_SIZE_IN_PIXELS) * 3 * bits_per_channel
 end
 
-def assert_equal(a,b,error)
-	if not a==b then
-		abort(error)
-	end
-end
-
 def byte_array_crc(arr)
 	crc = Zlib.crc32(arr.pack("C*"))
 	return crc & 0xffff
@@ -261,82 +255,6 @@ def read_data(png_name, decryption_key)
 	return actual_data
 end
 
-def test()
-	# Test byte array/int conversion
-	assert_equal($MAGIC_NUMBER, byte_array_to_int(int_to_byte_array($MAGIC_NUMBER)),"Could not revert properly back to int")
-
-	# Unit test encryption/decryption. Given data and key, it should be true that data equals decrypt(encrypt(data,key),key).
-	data = "test encryption data".bytes
-	key = "test_encryption_key"
-	encrypted = encrypt(data,key)
-	orig = decrypt(encrypted,key)
-	assert_equal(data.pack("c*"), orig.pack("c*"),"Encryption/decryption doesn't work as it should!")
-
-	# Test PNG steganography
-	test_cases = [
-		{
-			# We should be able to handle empty data without trouble.
-			:data => "",
-			:bits_per_channel => 3,
-			:image_width => 256,
-			:image_height => 256,
-			:encrypt => false
-		},
-		{
-			# Even if it's encrypted.
-			:data => "",
-			:bits_per_channel => 3,
-			:image_width => 256,
-			:image_height => 256,
-			:encrypt => true
-		},
-		{
-			:data => "Makrillien ystavat tulevat kokemaan ihmeellisen kokemuksen josta riittaa kerrottavaksi jalkipolville.",
-			:encrypt => true,
-			:bits_per_channel => 1,
-			:image_width => 256,
-			:image_height => 128,
-			:encryption_key => "zappadam"
-		},
-		{
-			:data => "Aivan jarjeton on leipajonon luotaanpoistyontava hantapaa.",
-			:bits_per_channel => 3,
-			:image_width => 256,
-			:image_height => 256,
-			:encrypt => false
-		}
-	]
-
-	start_time = Time.now
-
-	test_cases.each { |test_case|
-		w = test_case[:image_width]
-		h = test_case[:image_height]
-		png = ChunkyPNG::Image.new(w, h, ChunkyPNG::Color::TRANSPARENT)
-		h.times do |y|
-			w.times do |x|
-				png[x,y] = ChunkyPNG::Color.rgba(x*256/w, y*256/h, (x+y) % 256, 255)	
-			end
-		end
-
-		png.save("test_in.png", :interlace => true)
-
-		test_string = test_case[:data]
-		data = test_string.bytes
-
-		export_data(data, "test_in.png" ,"test_out.png", test_case[:bits_per_channel], test_case[:encrypt] ? test_case[:encryption_key] : nil)
-		read_data = read_data("test_out.png", test_case[:encrypt] ? test_case[:encryption_key] : nil)
-
-		if read_data.sort != data.sort then
-			abort("Error!")
-		end
-	}
-
-	end_time = Time.now
-	run_time = end_time - start_time
-	puts "Test took " + run_time.to_s + " s"
-end
-
 def parse_args()
 	if ARGV.count == 0 then
 		return nil
@@ -345,9 +263,6 @@ def parse_args()
 	args = {}
 
 	supported_args = {
-		"test" => {
-			:params => 0
-		},
 		"png_in" => {
 			:params => 1
 		},
@@ -409,9 +324,7 @@ end
 if __FILE__ == $0
 	args = parse_args()
 
-	if args != nil and args.has_key? "test" then
-		test()
-	elsif args != nil and args.has_key? "png_in" and args.has_key? "data_in" and args.has_key? "png_out" then
+	if args != nil and args.has_key? "png_in" and args.has_key? "data_in" and args.has_key? "png_out" then
 		# Put data inside PNG
 		bits_per_channel = 1
 		if args.has_key? "bits_per_channel" then
